@@ -63,11 +63,11 @@ export function KitchenCanvas() {
         return;
       }
 
-      // Place at center of room initially
+      // Place at center of room initially (NW corner origin)
       const initialPosition: Position3D = {
-        x: 0,
+        x: scene.room.dimensions.width / 2,
         y: asset.dimensions.height / 2,
-        z: 0,
+        z: scene.room.dimensions.depth / 2,
       };
 
       // Apply snapping
@@ -140,6 +140,8 @@ export function KitchenCanvas() {
 
   const { width, depth } = scene.room.dimensions;
   const cameraDistance = Math.max(width, depth) * 1.5;
+  // Camera target: center of room (NW corner origin)
+  const cameraTarget: [number, number, number] = [width / 2, 0, depth / 2];
 
   return (
     <div 
@@ -164,7 +166,7 @@ export function KitchenCanvas() {
       
       <Canvas
         camera={{
-          position: [cameraDistance, cameraDistance * 0.8, cameraDistance],
+          position: [width / 2 + cameraDistance, cameraDistance * 0.8, depth / 2 + cameraDistance],
           fov: 50,
           near: 0.1,
           far: 100,
@@ -198,11 +200,11 @@ export function KitchenCanvas() {
           {/* Placed assets */}
           <PlacedAssets />
 
-          {/* Grid helper */}
+          {/* Grid helper - centered on room */}
           {showGrid && (
             <Grid
               args={[width * 2, depth * 2]}
-              position={[0, 0.001, 0]}
+              position={[width / 2, 0.001, depth / 2]}
               cellSize={0.5}
               cellThickness={0.5}
               cellColor="#a0a0a0"
@@ -223,7 +225,7 @@ export function KitchenCanvas() {
             maxPolarAngle={Math.PI / 2 - 0.1}
             minDistance={1}
             maxDistance={Math.max(width, depth) * 3}
-            target={[0, 0, 0]}
+            target={cameraTarget}
             enableDamping
             dampingFactor={0.05}
           />

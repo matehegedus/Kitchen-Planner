@@ -12,6 +12,7 @@ export interface Asset {
   dimensions: Dimensions;
   defaultTexture: AssetTexture;
   snapBehavior: SnapBehavior;
+  canMoveY: boolean; // Can be moved vertically (wall-mounted items)
   icon?: string; // Lucide icon name
 }
 
@@ -24,6 +25,7 @@ export const DEFAULT_ASSETS: Asset[] = [
     dimensions: { width: 0.8, height: 1.8, depth: 0.7 },
     defaultTexture: { type: 'stainless', color: '#a8a8a8', metalness: 0.8, roughness: 0.3 },
     snapBehavior: 'floor',
+    canMoveY: false,
     icon: 'Refrigerator',
   },
   {
@@ -33,6 +35,7 @@ export const DEFAULT_ASSETS: Asset[] = [
     dimensions: { width: 0.6, height: 0.9, depth: 0.6 },
     defaultTexture: { type: 'stainless', color: '#b0b0b0', metalness: 0.7, roughness: 0.35 },
     snapBehavior: 'floor',
+    canMoveY: false,
     icon: 'CookingPot',
   },
   {
@@ -42,6 +45,7 @@ export const DEFAULT_ASSETS: Asset[] = [
     dimensions: { width: 0.6, height: 0.9, depth: 0.6 },
     defaultTexture: { type: 'wood', color: '#8b6914', roughness: 0.7 },
     snapBehavior: 'floor',
+    canMoveY: false,
     icon: 'LayoutGrid',
   },
   {
@@ -51,6 +55,7 @@ export const DEFAULT_ASSETS: Asset[] = [
     dimensions: { width: 0.6, height: 0.6, depth: 0.35 },
     defaultTexture: { type: 'wood', color: '#8b6914', roughness: 0.7 },
     snapBehavior: 'wall',
+    canMoveY: true,
     icon: 'Square',
   },
   {
@@ -60,6 +65,7 @@ export const DEFAULT_ASSETS: Asset[] = [
     dimensions: { width: 0.8, height: 0.03, depth: 0.25 },
     defaultTexture: { type: 'wood', color: '#a67c52', roughness: 0.6 },
     snapBehavior: 'wall',
+    canMoveY: true,
     icon: 'Minus',
   },
   {
@@ -69,6 +75,7 @@ export const DEFAULT_ASSETS: Asset[] = [
     dimensions: { width: 1.2, height: 0.9, depth: 0.8 },
     defaultTexture: { type: 'wood', color: '#6b4423', roughness: 0.65 },
     snapBehavior: 'floor',
+    canMoveY: false,
     icon: 'Table2',
   },
   {
@@ -78,6 +85,7 @@ export const DEFAULT_ASSETS: Asset[] = [
     dimensions: { width: 0.6, height: 0.85, depth: 0.6 },
     defaultTexture: { type: 'stainless', color: '#c0c0c0', metalness: 0.75, roughness: 0.3 },
     snapBehavior: 'floor',
+    canMoveY: false,
     icon: 'WashingMachine',
   },
   {
@@ -87,6 +95,7 @@ export const DEFAULT_ASSETS: Asset[] = [
     dimensions: { width: 0.8, height: 0.9, depth: 0.6 },
     defaultTexture: { type: 'white', color: '#f5f5f5', roughness: 0.4 },
     snapBehavior: 'floor',
+    canMoveY: false,
     icon: 'Bath',
   },
 ];
