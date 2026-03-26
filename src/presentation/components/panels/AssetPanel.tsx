@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { 
   Refrigerator, 
   CookingPot, 
@@ -11,14 +11,20 @@ import {
   WashingMachine, 
   Bath,
   ChevronDown,
-  GripVertical
+  GripVertical,
+  Plus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { DEFAULT_ASSETS, type Asset, type AssetCategory } from '@/src/domains/asset';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { DEFAULT_ASSETS, type Asset, type AssetCategory, getAssetById } from '@/src/domains/asset';
 import { useUIStore } from '@/src/presentation/stores/uiStore';
+import { useSceneStore } from '@/src/presentation/stores/sceneStore';
+import { calculateSnappedPosition } from '@/src/domains/scene/services/SnapService';
+import { checkCollision, findNearestValidPosition } from '@/src/domains/scene/services/CollisionService';
+import type { Position3D } from '@/src/domains/shared/types';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Refrigerator,
@@ -40,9 +46,10 @@ const CATEGORY_LABELS: Record<AssetCategory, string> = {
 interface AssetItemProps {
   asset: Asset;
   onDragStart: () => void;
+  onClickPlace: (assetId: string) => void;
 }
 
-function AssetItem({ asset, onDragStart }: AssetItemProps) {
+function AssetItem({ asset, onDragStart, onClickPlace }: AssetItemProps) {
   const Icon = asset.icon ? ICON_MAP[asset.icon] : Square;
   const startDrag = useUIStore((state) => state.startDrag);
 
@@ -54,33 +61,56 @@ function AssetItem({ asset, onDragStart }: AssetItemProps) {
   };
 
   const handleDragEnd = () => {
-    // Drag end is handled by DropZone
+    // Drag end is handled by canvas container
+  };
+
+  const handleClickPlace = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClickPlace(asset.id);
   };
 
   return (
-    <div
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      className={cn(
-        'flex items-center gap-3 rounded-md border border-border bg-card p-3',
-        'cursor-grab active:cursor-grabbing',
-        'hover:border-primary/50 hover:bg-accent/50',
-        'transition-colors duration-150'
-      )}
-    >
-      <div className="flex size-8 items-center justify-center rounded bg-muted">
-        <Icon className="size-4 text-muted-foreground" />
+    <TooltipProvider>
+      <div
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        className={cn(
+          'flex items-center gap-3 rounded-md border border-border bg-card p-3',
+          'cursor-grab active:cursor-grabbing',
+          'hover:border-primary/50 hover:bg-accent/50',
+          'transition-colors duration-150'
+        )}
+      >
+        <div className="flex size-8 items-center justify-center rounded bg-muted">
+          <Icon className="size-4 text-muted-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{asset.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {(asset.dimensions.width * 100).toFixed(0)} x{' '}
+            {(asset.dimensions.depth * 100).toFixed(0)} cm
+          </p>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={handleClickPlace}
+            >
+              <Plus className="size-4" />
+              <span className="sr-only">Add to scene</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <p>Click to add to scene</p>
+          </TooltipContent>
+        </Tooltip>
+        <GripVertical className="size-4 text-muted-foreground/50" />
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{asset.name}</p>
-        <p className="text-xs text-muted-foreground">
-          {(asset.dimensions.width * 100).toFixed(0)} x{' '}
-          {(asset.dimensions.depth * 100).toFixed(0)} cm
-        </p>
-      </div>
-      <GripVertical className="size-4 text-muted-foreground/50" />
-    </div>
+    </TooltipProvider>
   );
 }
 
@@ -88,9 +118,10 @@ interface AssetCategoryGroupProps {
   category: AssetCategory;
   assets: Asset[];
   onAssetDragStart: () => void;
+  onClickPlace: (assetId: string) => void;
 }
 
-function AssetCategoryGroup({ category, assets, onAssetDragStart }: AssetCategoryGroupProps) {
+function AssetCategoryGroup({ category, assets, onAssetDragStart, onClickPlace }: AssetCategoryGroupProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -117,6 +148,7 @@ function AssetCategoryGroup({ category, assets, onAssetDragStart }: AssetCategor
             key={asset.id}
             asset={asset}
             onDragStart={onAssetDragStart}
+            onClickPlace={onClickPlace}
           />
         ))}
       </CollapsibleContent>
@@ -125,7 +157,67 @@ function AssetCategoryGroup({ category, assets, onAssetDragStart }: AssetCategor
 }
 
 export function AssetPanel() {
-  const [isDraggingFromPanel, setIsDraggingFromPanel] = useState(false);
+  const scene = useSceneStore((state) => state.scene);
+  const placeAsset = useSceneStore((state) => state.placeAsset);
+  const getAssetLibrary = useSceneStore((state) => state.getAssetLibrary);
+  const selectAsset = useUIStore((state) => state.selectAsset);
+
+  // Handle click-to-place
+  const handleClickPlace = useCallback((assetId: string) => {
+    if (!scene) return;
+
+    const asset = getAssetById(assetId);
+    if (!asset) return;
+
+    // Place at center of room initially
+    const initialPosition: Position3D = {
+      x: 0,
+      y: asset.dimensions.height / 2,
+      z: 0,
+    };
+
+    // Apply snapping
+    const snapResult = calculateSnappedPosition(
+      initialPosition,
+      asset,
+      scene.room
+    );
+
+    // Check collision
+    const assetLibrary = getAssetLibrary();
+    const collision = checkCollision(
+      snapResult.position,
+      asset.dimensions,
+      scene.placedAssets,
+      assetLibrary
+    );
+
+    let finalPosition = snapResult.position;
+
+    if (collision.collides) {
+      // Try to find a valid position nearby
+      const validPosition = findNearestValidPosition(
+        snapResult.position,
+        asset.dimensions,
+        scene.placedAssets,
+        assetLibrary,
+        scene.room
+      );
+
+      if (validPosition) {
+        finalPosition = validPosition;
+      }
+      // Even if no valid position, still place it (user can move it)
+    }
+
+    // Place the asset
+    const placedAssetId = placeAsset(assetId, finalPosition);
+    
+    // Select the newly placed asset
+    if (placedAssetId) {
+      selectAsset(placedAssetId);
+    }
+  }, [scene, placeAsset, getAssetLibrary, selectAsset]);
 
   // Group assets by category
   const assetsByCategory = DEFAULT_ASSETS.reduce(
@@ -146,7 +238,7 @@ export function AssetPanel() {
       <div className="px-4 py-3 border-b border-border">
         <h3 className="font-semibold text-sm">Assets</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Drag items to the canvas
+          Drag or click + to add items
         </p>
       </div>
       
@@ -157,7 +249,8 @@ export function AssetPanel() {
               key={category}
               category={category}
               assets={assetsByCategory[category] || []}
-              onAssetDragStart={() => setIsDraggingFromPanel(true)}
+              onAssetDragStart={() => {}}
+              onClickPlace={handleClickPlace}
             />
           ))}
         </div>
@@ -177,13 +270,7 @@ export function AssetPanel() {
         </div>
       </ScrollArea>
 
-      {isDraggingFromPanel && (
-        <div
-          className="fixed inset-0 z-50"
-          onDragEnd={() => setIsDraggingFromPanel(false)}
-          onDrop={() => setIsDraggingFromPanel(false)}
-        />
-      )}
+      
     </div>
   );
 }

@@ -1,15 +1,19 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useCallback, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, Grid, Html } from '@react-three/drei';
 import { useSceneStore, initializeDefaultRoom } from '@/src/presentation/stores/sceneStore';
 import { useUIStore } from '@/src/presentation/stores/uiStore';
+import { getAssetById } from '@/src/domains/asset';
+import { calculateSnappedPosition } from '@/src/domains/scene/services/SnapService';
+import { checkCollision, findNearestValidPosition } from '@/src/domains/scene/services/CollisionService';
+import type { Position3D } from '@/src/domains/shared/types';
 import { Room3D } from './Room3D';
 import { PlacedAssets } from './PlacedAssets';
 import { MeasurementOverlay } from './MeasurementOverlay';
-import { DropZone } from './DropZone';
 import { Spinner } from '@/components/ui/spinner';
+import { cn } from '@/lib/utils';
 
 function LoadingFallback() {
   return (
@@ -24,12 +28,105 @@ function LoadingFallback() {
 
 export function KitchenCanvas() {
   const scene = useSceneStore((state) => state.scene);
+  const placeAsset = useSceneStore((state) => state.placeAsset);
+  const getAssetLibrary = useSceneStore((state) => state.getAssetLibrary);
   const showGrid = useUIStore((state) => state.showGrid);
   const showMeasurements = useUIStore((state) => state.showMeasurements);
+  const isDragging = useUIStore((state) => state.isDragging);
+  const dragAssetType = useUIStore((state) => state.dragAssetType);
+  const endDrag = useUIStore((state) => state.endDrag);
+  const selectAsset = useUIStore((state) => state.selectAsset);
+  
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Initialize room on mount if needed
   useEffect(() => {
     initializeDefaultRoom();
+  }, []);
+
+  // Handle HTML5 drop event on the canvas container
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+
+      const assetId = e.dataTransfer.getData('assetId') || dragAssetType;
+      if (!assetId || !scene) {
+        endDrag();
+        return;
+      }
+
+      const asset = getAssetById(assetId);
+      if (!asset) {
+        endDrag();
+        return;
+      }
+
+      // Place at center of room initially
+      const initialPosition: Position3D = {
+        x: 0,
+        y: asset.dimensions.height / 2,
+        z: 0,
+      };
+
+      // Apply snapping
+      const snapResult = calculateSnappedPosition(
+        initialPosition,
+        asset,
+        scene.room
+      );
+
+      // Check collision
+      const assetLibrary = getAssetLibrary();
+      const collision = checkCollision(
+        snapResult.position,
+        asset.dimensions,
+        scene.placedAssets,
+        assetLibrary
+      );
+
+      let finalPosition = snapResult.position;
+
+      if (collision.collides) {
+        // Try to find a valid position nearby
+        const validPosition = findNearestValidPosition(
+          snapResult.position,
+          asset.dimensions,
+          scene.placedAssets,
+          assetLibrary,
+          scene.room
+        );
+
+        if (validPosition) {
+          finalPosition = validPosition;
+        }
+        // Even if no valid position, still place it (user can move it)
+      }
+
+      // Place the asset
+      const placedAssetId = placeAsset(assetId, finalPosition);
+      
+      // Select the newly placed asset
+      if (placedAssetId) {
+        selectAsset(placedAssetId);
+      }
+
+      endDrag();
+    },
+    [scene, dragAssetType, placeAsset, getAssetLibrary, endDrag, selectAsset]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only set false if we're leaving the container entirely
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
   }, []);
 
   if (!scene) {
@@ -44,7 +141,26 @@ export function KitchenCanvas() {
   const cameraDistance = Math.max(width, depth) * 1.5;
 
   return (
-    <div className="relative h-full w-full">
+    <div 
+      className="relative h-full w-full"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+    >
+      {/* Drop overlay */}
+      {(isDragging || isDragOver) && (
+        <div className={cn(
+          "absolute inset-0 z-10 pointer-events-none",
+          "flex items-center justify-center",
+          "bg-primary/10 border-2 border-dashed border-primary rounded-lg",
+          "transition-opacity duration-200"
+        )}>
+          <div className="bg-background/90 px-6 py-3 rounded-lg shadow-lg">
+            <p className="text-sm font-medium text-primary">Drop to place in scene</p>
+          </div>
+        </div>
+      )}
+      
       <Canvas
         camera={{
           position: [cameraDistance, cameraDistance * 0.8, cameraDistance],
@@ -80,9 +196,6 @@ export function KitchenCanvas() {
 
           {/* Placed assets */}
           <PlacedAssets />
-
-          {/* Drop zone for drag and drop */}
-          <DropZone room={scene.room} />
 
           {/* Grid helper */}
           {showGrid && (
