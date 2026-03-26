@@ -79,12 +79,24 @@ export function checkRoomBounds(
   const assetHalfHeight = dimensions.height / 2;
   const assetHalfDepth = dimensions.depth / 2;
 
-  // Check if asset fits within room bounds
+  // Get wall thicknesses for each enabled wall
+  const northWall = room.walls.find(w => w.position === 'north');
+  const southWall = room.walls.find(w => w.position === 'south');
+  const eastWall = room.walls.find(w => w.position === 'east');
+  const westWall = room.walls.find(w => w.position === 'west');
+
+  // Calculate inner bounds accounting for wall thickness
+  const minX = -halfWidth + (westWall?.enabled ? westWall.thickness : 0);
+  const maxX = halfWidth - (eastWall?.enabled ? eastWall.thickness : 0);
+  const minZ = -halfDepth + (northWall?.enabled ? northWall.thickness : 0);
+  const maxZ = halfDepth - (southWall?.enabled ? southWall.thickness : 0);
+
+  // Check if asset fits within room inner bounds (inside walls)
   return (
-    position.x - assetHalfWidth >= -halfWidth &&
-    position.x + assetHalfWidth <= halfWidth &&
-    position.z - assetHalfDepth >= -halfDepth &&
-    position.z + assetHalfDepth <= halfDepth &&
+    position.x - assetHalfWidth >= minX &&
+    position.x + assetHalfWidth <= maxX &&
+    position.z - assetHalfDepth >= minZ &&
+    position.z + assetHalfDepth <= maxZ &&
     position.y - assetHalfHeight >= 0 &&
     position.y + assetHalfHeight <= height
   );
@@ -103,19 +115,25 @@ export function clampToRoomBounds(
   const assetHalfHeight = dimensions.height / 2;
   const assetHalfDepth = dimensions.depth / 2;
 
+  // Get wall thicknesses for each enabled wall
+  const northWall = room.walls.find(w => w.position === 'north');
+  const southWall = room.walls.find(w => w.position === 'south');
+  const eastWall = room.walls.find(w => w.position === 'east');
+  const westWall = room.walls.find(w => w.position === 'west');
+
+  // Calculate inner bounds accounting for wall thickness
+  const minX = -halfWidth + (westWall?.enabled ? westWall.thickness : 0) + assetHalfWidth;
+  const maxX = halfWidth - (eastWall?.enabled ? eastWall.thickness : 0) - assetHalfWidth;
+  const minZ = -halfDepth + (northWall?.enabled ? northWall.thickness : 0) + assetHalfDepth;
+  const maxZ = halfDepth - (southWall?.enabled ? southWall.thickness : 0) - assetHalfDepth;
+
   return {
-    x: Math.max(
-      -halfWidth + assetHalfWidth,
-      Math.min(halfWidth - assetHalfWidth, position.x)
-    ),
+    x: Math.max(minX, Math.min(maxX, position.x)),
     y: Math.max(
       assetHalfHeight,
       Math.min(height - assetHalfHeight, position.y)
     ),
-    z: Math.max(
-      -halfDepth + assetHalfDepth,
-      Math.min(halfDepth - assetHalfDepth, position.z)
-    ),
+    z: Math.max(minZ, Math.min(maxZ, position.z)),
   };
 }
 

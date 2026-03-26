@@ -11,7 +11,7 @@ export interface Room {
 export function createRoom(
   id: string,
   dimensions: Dimensions,
-  enabledWalls: WallPosition[] = ['north', 'east', 'west']
+  enabledWalls: WallPosition[] = ['north', 'west']
 ): Room {
   const walls: Wall[] = [
     { 
