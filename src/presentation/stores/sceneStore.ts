@@ -45,7 +45,7 @@ export const useSceneStore = create<SceneState>()(
       scene: null,
 
       initializeRoom: (dimensions: Dimensions) => {
-        const room = createRoom(uuidv4(), dimensions, ['north', 'east', 'west']);
+        const room = createRoom(uuidv4(), dimensions, ['north', 'west']);
         const scene: Scene = {
           id: uuidv4(),
           name: 'Kitchen Design',
