@@ -12,7 +12,8 @@ import {
   Bath,
   ChevronDown,
   GripVertical,
-  Plus
+  Plus,
+  ArrowUpDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -86,7 +87,21 @@ function AssetItem({ asset, onDragStart, onClickPlace }: AssetItemProps) {
           <Icon className="size-4 text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{asset.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium truncate">{asset.name}</p>
+            {asset.canMoveY && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center justify-center size-4 rounded bg-primary/10">
+                    <ArrowUpDown className="size-3 text-primary" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Wall-mounted (adjustable height)</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
             {(asset.dimensions.width * 100).toFixed(0)} x{' '}
             {(asset.dimensions.depth * 100).toFixed(0)} cm
@@ -169,11 +184,11 @@ export function AssetPanel() {
     const asset = getAssetById(assetId);
     if (!asset) return;
 
-    // Place at center of room initially
+    // Place at center of room (NW corner origin)
     const initialPosition: Position3D = {
-      x: 0,
+      x: scene.room.dimensions.width / 2,
       y: asset.dimensions.height / 2,
-      z: 0,
+      z: scene.room.dimensions.depth / 2,
     };
 
     // Apply snapping

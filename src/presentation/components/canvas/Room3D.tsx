@@ -8,10 +8,23 @@ interface Room3DProps {
   room: Room;
 }
 
+/**
+ * Room3D renders the room with NW corner (North-West) at origin (0, 0, 0).
+ * 
+ * Coordinate system:
+ * - Origin (0,0,0) is at NW corner (where north and west walls meet)
+ * - X increases eastward (towards east wall)
+ * - Y increases upward (floor is at Y=0)
+ * - Z increases southward (towards south wall)
+ * 
+ * This means:
+ * - North wall is at Z = 0
+ * - West wall is at X = 0
+ * - South wall is at Z = depth
+ * - East wall is at X = width
+ */
 export function Room3D({ room }: Room3DProps) {
   const { width, height, depth } = room.dimensions;
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
 
   // Memoize materials
   const floorMaterial = useMemo(
@@ -40,9 +53,9 @@ export function Room3D({ room }: Room3DProps) {
 
   return (
     <group>
-      {/* Floor */}
+      {/* Floor - centered at (width/2, 0, depth/2) so it spans from 0 to width/depth */}
       <mesh
-        position={[0, 0, 0]}
+        position={[width / 2, 0, depth / 2]}
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
       >
@@ -50,7 +63,7 @@ export function Room3D({ room }: Room3DProps) {
         <primitive object={floorMaterial} attach="material" />
       </mesh>
 
-      {/* Walls */}
+      {/* Walls - positioned relative to NW corner origin */}
       {enabledWalls.map((wall) => {
         const thickness = wall.thickness;
         let position: [number, number, number] = [0, 0, 0];
@@ -58,19 +71,23 @@ export function Room3D({ room }: Room3DProps) {
 
         switch (wall.position) {
           case 'north':
-            position = [0, height / 2, -halfDepth + thickness / 2];
+            // North wall at Z = thickness/2, spans full width
+            position = [width / 2, height / 2, thickness / 2];
             size = [width, height, thickness];
             break;
           case 'south':
-            position = [0, height / 2, halfDepth - thickness / 2];
+            // South wall at Z = depth - thickness/2
+            position = [width / 2, height / 2, depth - thickness / 2];
             size = [width, height, thickness];
             break;
           case 'east':
-            position = [halfWidth - thickness / 2, height / 2, 0];
+            // East wall at X = width - thickness/2
+            position = [width - thickness / 2, height / 2, depth / 2];
             size = [thickness, height, depth];
             break;
           case 'west':
-            position = [-halfWidth + thickness / 2, height / 2, 0];
+            // West wall at X = thickness/2
+            position = [thickness / 2, height / 2, depth / 2];
             size = [thickness, height, depth];
             break;
         }
@@ -103,15 +120,14 @@ function CornerPosts({
   depth: number;
   height: number;
 }) {
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
   const postSize = 0.02;
 
+  // Positions at corners: NW (origin), NE, SW, SE
   const positions: [number, number, number][] = [
-    [-halfWidth, height / 2, -halfDepth],
-    [halfWidth, height / 2, -halfDepth],
-    [-halfWidth, height / 2, halfDepth],
-    [halfWidth, height / 2, halfDepth],
+    [0, height / 2, 0],           // NW corner (origin)
+    [width, height / 2, 0],       // NE corner
+    [0, height / 2, depth],       // SW corner
+    [width, height / 2, depth],   // SE corner
   ];
 
   const material = useMemo(

@@ -2,6 +2,13 @@ import type { Position3D, Dimensions, WallPosition } from '../../shared/types';
 import type { Room, Wall } from '../../room';
 import type { Asset } from '../../asset';
 
+/**
+ * Coordinate system: NW corner is at origin (0,0,0)
+ * - X: 0 to width (west to east)
+ * - Y: 0 to height (floor to ceiling)
+ * - Z: 0 to depth (north to south)
+ */
+
 const WALL_SNAP_THRESHOLD = 0.25; // meters - how close to wall before snapping
 const GRID_SIZE = 0.05; // 5cm grid for smoother placement
 
@@ -26,21 +33,19 @@ export function getWallPositions(
   room: Room
 ): { wall: Wall; snapX: number; snapZ: number }[] {
   const { width, depth } = room.dimensions;
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
 
   return room.walls
     .filter((w) => w.enabled)
     .map((wall) => {
       switch (wall.position) {
         case 'north':
-          return { wall, snapX: 0, snapZ: -halfDepth };
+          return { wall, snapX: width / 2, snapZ: 0 };
         case 'south':
-          return { wall, snapX: 0, snapZ: halfDepth };
+          return { wall, snapX: width / 2, snapZ: depth };
         case 'east':
-          return { wall, snapX: halfWidth, snapZ: 0 };
+          return { wall, snapX: width, snapZ: depth / 2 };
         case 'west':
-          return { wall, snapX: -halfWidth, snapZ: 0 };
+          return { wall, snapX: 0, snapZ: depth / 2 };
         default:
           return { wall, snapX: 0, snapZ: 0 };
       }
@@ -65,16 +70,15 @@ export function snapToWall(
   wallHeight: number = 1.5 // Default wall mount height
 ): SnapResult {
   const { width, depth } = room.dimensions;
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
   const assetHalfDepth = asset.dimensions.depth / 2;
 
-  // Check each enabled wall
+  // Check each enabled wall (NW corner origin)
   for (const wall of room.walls.filter((w) => w.enabled)) {
     switch (wall.position) {
       case 'north': {
-        const wallZ = -halfDepth + wall.thickness / 2;
-        if (Math.abs(position.z - wallZ) < WALL_SNAP_THRESHOLD) {
+        // North wall at Z = wall.thickness
+        const wallZ = wall.thickness;
+        if (position.z < wallZ + WALL_SNAP_THRESHOLD) {
           return {
             position: {
               x: snapToGrid(position.x),
@@ -87,8 +91,9 @@ export function snapToWall(
         break;
       }
       case 'south': {
-        const wallZ = halfDepth - wall.thickness / 2;
-        if (Math.abs(position.z - wallZ) < WALL_SNAP_THRESHOLD) {
+        // South wall at Z = depth - wall.thickness
+        const wallZ = depth - wall.thickness;
+        if (position.z > wallZ - WALL_SNAP_THRESHOLD) {
           return {
             position: {
               x: snapToGrid(position.x),
@@ -101,8 +106,9 @@ export function snapToWall(
         break;
       }
       case 'east': {
-        const wallX = halfWidth - wall.thickness / 2;
-        if (Math.abs(position.x - wallX) < WALL_SNAP_THRESHOLD) {
+        // East wall at X = width - wall.thickness
+        const wallX = width - wall.thickness;
+        if (position.x > wallX - WALL_SNAP_THRESHOLD) {
           return {
             position: {
               x: wallX - assetHalfDepth,
@@ -115,8 +121,9 @@ export function snapToWall(
         break;
       }
       case 'west': {
-        const wallX = -halfWidth + wall.thickness / 2;
-        if (Math.abs(position.x - wallX) < WALL_SNAP_THRESHOLD) {
+        // West wall at X = wall.thickness
+        const wallX = wall.thickness;
+        if (position.x < wallX + WALL_SNAP_THRESHOLD) {
           return {
             position: {
               x: wallX + assetHalfDepth,
@@ -140,20 +147,19 @@ export function snapFloorAssetToWall(
   room: Room
 ): SnapResult {
   const { width, depth } = room.dimensions;
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
   const assetHalfDepth = asset.dimensions.depth / 2;
   const assetHalfWidth = asset.dimensions.width / 2;
 
-  // Check proximity to each wall and snap
+  // Check proximity to each wall and snap (NW corner origin)
   for (const wall of room.walls.filter((w) => w.enabled)) {
     switch (wall.position) {
       case 'north': {
-        const wallZ = -halfDepth + wall.thickness;
+        // North wall inner edge at Z = wall.thickness
+        const wallZ = wall.thickness;
         if (position.z - assetHalfDepth < wallZ + WALL_SNAP_THRESHOLD) {
           return {
             position: {
-              x: clampToRoom(position.x, halfWidth - assetHalfWidth),
+              x: clampToRoom(position.x, assetHalfWidth, width - assetHalfWidth),
               y: asset.dimensions.height / 2,
               z: wallZ + assetHalfDepth,
             },
@@ -163,11 +169,12 @@ export function snapFloorAssetToWall(
         break;
       }
       case 'south': {
-        const wallZ = halfDepth - wall.thickness;
+        // South wall inner edge at Z = depth - wall.thickness
+        const wallZ = depth - wall.thickness;
         if (position.z + assetHalfDepth > wallZ - WALL_SNAP_THRESHOLD) {
           return {
             position: {
-              x: clampToRoom(position.x, halfWidth - assetHalfWidth),
+              x: clampToRoom(position.x, assetHalfWidth, width - assetHalfWidth),
               y: asset.dimensions.height / 2,
               z: wallZ - assetHalfDepth,
             },
@@ -177,13 +184,14 @@ export function snapFloorAssetToWall(
         break;
       }
       case 'east': {
-        const wallX = halfWidth - wall.thickness;
+        // East wall inner edge at X = width - wall.thickness
+        const wallX = width - wall.thickness;
         if (position.x + assetHalfWidth > wallX - WALL_SNAP_THRESHOLD) {
           return {
             position: {
               x: wallX - assetHalfWidth,
               y: asset.dimensions.height / 2,
-              z: clampToRoom(position.z, halfDepth - assetHalfDepth),
+              z: clampToRoom(position.z, assetHalfDepth, depth - assetHalfDepth),
             },
             snappedTo: 'east',
           };
@@ -191,13 +199,14 @@ export function snapFloorAssetToWall(
         break;
       }
       case 'west': {
-        const wallX = -halfWidth + wall.thickness;
+        // West wall inner edge at X = wall.thickness
+        const wallX = wall.thickness;
         if (position.x - assetHalfWidth < wallX + WALL_SNAP_THRESHOLD) {
           return {
             position: {
               x: wallX + assetHalfWidth,
               y: asset.dimensions.height / 2,
-              z: clampToRoom(position.z, halfDepth - assetHalfDepth),
+              z: clampToRoom(position.z, assetHalfDepth, depth - assetHalfDepth),
             },
             snappedTo: 'west',
           };
@@ -214,8 +223,8 @@ export function snapFloorAssetToWall(
   };
 }
 
-function clampToRoom(value: number, max: number): number {
-  return Math.max(-max, Math.min(max, snapToGrid(value)));
+function clampToRoom(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, snapToGrid(value)));
 }
 
 export function calculateSnappedPosition(

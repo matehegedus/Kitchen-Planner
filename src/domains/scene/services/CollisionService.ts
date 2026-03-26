@@ -66,14 +66,18 @@ export function checkCollision(
   return { collides: false };
 }
 
+/**
+ * Coordinate system: NW corner is at origin (0,0,0)
+ * - X: 0 to width (west to east)
+ * - Y: 0 to height (floor to ceiling)
+ * - Z: 0 to depth (north to south)
+ */
 export function checkRoomBounds(
   position: Position3D,
   dimensions: Dimensions,
   room: Room
 ): boolean {
   const { width, depth, height } = room.dimensions;
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
 
   const assetHalfWidth = dimensions.width / 2;
   const assetHalfHeight = dimensions.height / 2;
@@ -86,10 +90,11 @@ export function checkRoomBounds(
   const westWall = room.walls.find(w => w.position === 'west');
 
   // Calculate inner bounds accounting for wall thickness
-  const minX = -halfWidth + (westWall?.enabled ? westWall.thickness : 0);
-  const maxX = halfWidth - (eastWall?.enabled ? eastWall.thickness : 0);
-  const minZ = -halfDepth + (northWall?.enabled ? northWall.thickness : 0);
-  const maxZ = halfDepth - (southWall?.enabled ? southWall.thickness : 0);
+  // NW corner origin: X and Z start at 0
+  const minX = westWall?.enabled ? westWall.thickness : 0;
+  const maxX = width - (eastWall?.enabled ? eastWall.thickness : 0);
+  const minZ = northWall?.enabled ? northWall.thickness : 0;
+  const maxZ = depth - (southWall?.enabled ? southWall.thickness : 0);
 
   // Check if asset fits within room inner bounds (inside walls)
   return (
@@ -102,14 +107,15 @@ export function checkRoomBounds(
   );
 }
 
+/**
+ * Clamps position to room bounds with NW corner origin
+ */
 export function clampToRoomBounds(
   position: Position3D,
   dimensions: Dimensions,
   room: Room
 ): Position3D {
   const { width, depth, height } = room.dimensions;
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
 
   const assetHalfWidth = dimensions.width / 2;
   const assetHalfHeight = dimensions.height / 2;
@@ -121,11 +127,11 @@ export function clampToRoomBounds(
   const eastWall = room.walls.find(w => w.position === 'east');
   const westWall = room.walls.find(w => w.position === 'west');
 
-  // Calculate inner bounds accounting for wall thickness
-  const minX = -halfWidth + (westWall?.enabled ? westWall.thickness : 0) + assetHalfWidth;
-  const maxX = halfWidth - (eastWall?.enabled ? eastWall.thickness : 0) - assetHalfWidth;
-  const minZ = -halfDepth + (northWall?.enabled ? northWall.thickness : 0) + assetHalfDepth;
-  const maxZ = halfDepth - (southWall?.enabled ? southWall.thickness : 0) - assetHalfDepth;
+  // Calculate inner bounds accounting for wall thickness (NW corner origin)
+  const minX = (westWall?.enabled ? westWall.thickness : 0) + assetHalfWidth;
+  const maxX = width - (eastWall?.enabled ? eastWall.thickness : 0) - assetHalfWidth;
+  const minZ = (northWall?.enabled ? northWall.thickness : 0) + assetHalfDepth;
+  const maxZ = depth - (southWall?.enabled ? southWall.thickness : 0) - assetHalfDepth;
 
   return {
     x: Math.max(minX, Math.min(maxX, position.x)),

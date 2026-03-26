@@ -49,7 +49,7 @@ export function PropertiesPanel() {
   const setMovementStep = useUIStore((state) => state.setMovementStep);
 
   // Local state for position inputs (to allow typing before committing)
-  const [positionInputs, setPositionInputs] = useState({ x: '', z: '' });
+  const [positionInputs, setPositionInputs] = useState({ x: '', y: '', z: '' });
 
   const selectedAsset = useMemo(() => {
     if (!selectedAssetId || !scene) return null;
@@ -100,12 +100,12 @@ export function PropertiesPanel() {
   };
 
   // Handle position input change
-  const handlePositionChange = useCallback((axis: 'x' | 'z', value: string) => {
+  const handlePositionChange = useCallback((axis: 'x' | 'y' | 'z', value: string) => {
     setPositionInputs(prev => ({ ...prev, [axis]: value }));
   }, []);
 
   // Commit position change on blur or Enter
-  const handlePositionCommit = useCallback((axis: 'x' | 'z') => {
+  const handlePositionCommit = useCallback((axis: 'x' | 'y' | 'z') => {
     if (!scene || !selectedAsset) return;
     
     const inputValue = positionInputs[axis];
@@ -125,20 +125,31 @@ export function PropertiesPanel() {
     // Create new position
     const newPosition: Position3D = {
       x: axis === 'x' ? numValue : placed.position.x,
-      y: placed.position.y,
+      y: axis === 'y' ? numValue : placed.position.y,
       z: axis === 'z' ? numValue : placed.position.z,
     };
 
     // Clamp to room bounds
     const clampedPosition = clampToRoomBounds(newPosition, asset.dimensions, scene.room);
 
-    // Apply snapping
-    const snapResult = calculateSnappedPosition(clampedPosition, asset, scene.room);
+    // Apply snapping only for X/Z, preserve Y for wall-mounted items
+    let finalPosition = clampedPosition;
+    let snappedTo = placed.snappedTo;
+    
+    if (axis !== 'y') {
+      const snapResult = calculateSnappedPosition(clampedPosition, asset, scene.room);
+      finalPosition = snapResult.position;
+      snappedTo = snapResult.snappedTo;
+      // Preserve Y position if asset can move Y
+      if (asset.canMoveY && axis === 'x') {
+        finalPosition.y = clampedPosition.y;
+      }
+    }
 
     // Check collision
     const assetLibrary = getAssetLibrary();
     const collision = checkCollision(
-      snapResult.position,
+      finalPosition,
       asset.dimensions,
       scene.placedAssets,
       assetLibrary,
@@ -147,14 +158,14 @@ export function PropertiesPanel() {
 
     // Only move if no collision
     if (!collision.collides) {
-      moveAsset(placed.id, snapResult.position, snapResult.snappedTo);
+      moveAsset(placed.id, finalPosition, snappedTo);
     }
 
     // Clear input
     setPositionInputs(prev => ({ ...prev, [axis]: '' }));
   }, [scene, selectedAsset, positionInputs, getAssetLibrary, moveAsset]);
 
-  const handlePositionKeyDown = useCallback((e: React.KeyboardEvent, axis: 'x' | 'z') => {
+  const handlePositionKeyDown = useCallback((e: React.KeyboardEvent, axis: 'x' | 'y' | 'z') => {
     if (e.key === 'Enter') {
       handlePositionCommit(axis);
     }
@@ -201,29 +212,45 @@ export function PropertiesPanel() {
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Position
           </h4>
-          <div className="grid grid-cols-2 gap-2">
+          <div className={cn("grid gap-2", asset.canMoveY ? "grid-cols-3" : "grid-cols-2")}>
             <div className="space-y-1">
-              <Label htmlFor="pos-x" className="text-xs text-muted-foreground">X (meters)</Label>
+              <Label htmlFor="pos-x" className="text-xs text-muted-foreground">X (m)</Label>
               <Input
                 id="pos-x"
                 type="number"
                 step={movementStep}
-                placeholder={placed.position.x.toFixed(3)}
-                value={positionInputs.x}
+                defaultValue={placed.position.x.toFixed(3)}
+                key={`x-${placed.position.x}`}
                 onChange={(e) => handlePositionChange('x', e.target.value)}
                 onBlur={() => handlePositionCommit('x')}
                 onKeyDown={(e) => handlePositionKeyDown(e, 'x')}
                 className="h-8 text-sm"
               />
             </div>
+            {asset.canMoveY && (
+              <div className="space-y-1">
+                <Label htmlFor="pos-y" className="text-xs text-muted-foreground">Y (m)</Label>
+                <Input
+                  id="pos-y"
+                  type="number"
+                  step={movementStep}
+                  defaultValue={placed.position.y.toFixed(3)}
+                  key={`y-${placed.position.y}`}
+                  onChange={(e) => handlePositionChange('y', e.target.value)}
+                  onBlur={() => handlePositionCommit('y')}
+                  onKeyDown={(e) => handlePositionKeyDown(e, 'y')}
+                  className="h-8 text-sm"
+                />
+              </div>
+            )}
             <div className="space-y-1">
-              <Label htmlFor="pos-z" className="text-xs text-muted-foreground">Z (meters)</Label>
+              <Label htmlFor="pos-z" className="text-xs text-muted-foreground">Z (m)</Label>
               <Input
                 id="pos-z"
                 type="number"
                 step={movementStep}
-                placeholder={placed.position.z.toFixed(3)}
-                value={positionInputs.z}
+                defaultValue={placed.position.z.toFixed(3)}
+                key={`z-${placed.position.z}`}
                 onChange={(e) => handlePositionChange('z', e.target.value)}
                 onBlur={() => handlePositionCommit('z')}
                 onKeyDown={(e) => handlePositionKeyDown(e, 'z')}
@@ -232,7 +259,7 @@ export function PropertiesPanel() {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Current: X={placed.position.x.toFixed(3)}m, Z={placed.position.z.toFixed(3)}m
+            Origin (0,0,0) is at NW corner
           </p>
           {placed.snappedTo && (
             <p className="text-xs text-muted-foreground">
