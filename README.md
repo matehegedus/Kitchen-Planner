@@ -26,27 +26,27 @@ graph TB
         UI[React Components]
         Canvas[3D Canvas - React Three Fiber]
     end
-    
+
     subgraph "State Management"
         SceneStore[Scene Store - Zustand]
         UIStore[UI Store - Zustand]
     end
-    
+
     subgraph "Domain Layer"
         Room[Room Domain]
         Asset[Asset Domain]
         Scene[Scene Domain]
     end
-    
+
     subgraph "Services"
         Snap[Snap Service]
         Collision[Collision Service]
     end
-    
+
     subgraph "Persistence"
         Storage[LocalStorage]
     end
-    
+
     UI --> SceneStore
     UI --> UIStore
     Canvas --> SceneStore
@@ -60,15 +60,15 @@ graph TB
 
 ### Tech Stack
 
-| Technology | Purpose | Why We Use It |
-|------------|---------|---------------|
-| **Next.js 16** | Web framework | Server-side rendering, file-based routing |
-| **React Three Fiber** | 3D rendering | React-friendly Three.js wrapper |
-| **@react-three/drei** | 3D utilities | Pre-built controls, helpers |
-| **Zustand** | State management | Performant for frequent 3D updates |
-| **TypeScript** | Type safety | Catch errors early, better IDE support |
-| **Tailwind CSS** | Styling | Rapid UI development |
-| **shadcn/ui** | UI components | Consistent, accessible components |
+| Technology            | Purpose          | Why We Use It                             |
+| --------------------- | ---------------- | ----------------------------------------- |
+| **Next.js 16**        | Web framework    | Server-side rendering, file-based routing |
+| **React Three Fiber** | 3D rendering     | React-friendly Three.js wrapper           |
+| **@react-three/drei** | 3D utilities     | Pre-built controls, helpers               |
+| **Zustand**           | State management | Performant for frequent 3D updates        |
+| **TypeScript**        | Type safety      | Catch errors early, better IDE support    |
+| **Tailwind CSS**      | Styling          | Rapid UI development                      |
+| **shadcn/ui**         | UI components    | Consistent, accessible components         |
 
 ---
 
@@ -104,25 +104,25 @@ kitchen-planner/
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [GETTING_STARTED.md](./docs/GETTING_STARTED.md) | Setup guide for new developers |
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Complete architecture with diagrams |
-| [3D_DEVELOPMENT.md](./docs/3D_DEVELOPMENT.md) | React Three Fiber patterns |
-| [DOMAIN_MODELS.md](./docs/DOMAIN_MODELS.md) | Business domain documentation |
-| [STATE_MANAGEMENT.md](./docs/STATE_MANAGEMENT.md) | Zustand stores guide |
-| [CONTRIBUTING.md](./docs/CONTRIBUTING.md) | How to add features |
+| Document                                          | Description                         |
+| ------------------------------------------------- | ----------------------------------- |
+| [GETTING_STARTED.md](./docs/GETTING_STARTED.md)   | Setup guide for new developers      |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md)         | Complete architecture with diagrams |
+| [3D_DEVELOPMENT.md](./docs/3D_DEVELOPMENT.md)     | React Three Fiber patterns          |
+| [DOMAIN_MODELS.md](./docs/DOMAIN_MODELS.md)       | Business domain documentation       |
+| [STATE_MANAGEMENT.md](./docs/STATE_MANAGEMENT.md) | Zustand stores guide                |
+| [CONTRIBUTING.md](./docs/CONTRIBUTING.md)         | How to add features                 |
 
 ### For AI-Assisted Development
 
 If using GitHub Copilot, Cursor, or other AI assistants:
 
-| File | Purpose |
-|------|---------|
-| [.github/copilot/instructions.md](.github/copilot/instructions.md) | General coding standards |
-| [.github/copilot/agents/feature-agent.md](.github/copilot/agents/feature-agent.md) | Adding new features |
-| [.github/copilot/agents/3d-agent.md](.github/copilot/agents/3d-agent.md) | 3D/R3F development |
-| [.github/copilot/agents/domain-agent.md](.github/copilot/agents/domain-agent.md) | Domain layer changes |
+| File                                                                               | Purpose                  |
+| ---------------------------------------------------------------------------------- | ------------------------ |
+| [.github/copilot/instructions.md](.github/copilot/instructions.md)                 | General coding standards |
+| [.github/copilot/agents/feature-agent.md](.github/copilot/agents/feature-agent.md) | Adding new features      |
+| [.github/copilot/agents/3d-agent.md](.github/copilot/agents/3d-agent.md)           | 3D/R3F development       |
+| [.github/copilot/agents/domain-agent.md](.github/copilot/agents/domain-agent.md)   | Domain layer changes     |
 
 ---
 
@@ -137,24 +137,3 @@ If using GitHub Copilot, Cursor, or other AI assistants:
 - **Save/Load** - Persist designs locally
 
 ---
-
-## Built with v0
-
-This repository is linked to a [v0](https://v0.app) project.
-
-[Continue working on v0](https://v0.app/chat/projects/prj_NSgAUaMchbmM086I6XSLuUOLkYPt)
-
----
-
-## Learn More
-
-- [Next.js Documentation](https://nextjs.org/docs)
-- [React Three Fiber Docs](https://r3f.docs.pmnd.rs/)
-- [Zustand Documentation](https://zustand.docs.pmnd.rs/)
-- [v0 Documentation](https://v0.app/docs)
-
----
-
-## License
-
-MIT
