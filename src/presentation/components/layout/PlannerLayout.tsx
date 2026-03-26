@@ -13,9 +13,9 @@ import {
   Palette,
   User
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   AlertDialog,
@@ -60,22 +60,7 @@ export function PlannerLayout() {
   const setShowSaveDialog = useUIStore((state) => state.setShowSaveDialog);
   const showLoadDialog = useUIStore((state) => state.showLoadDialog);
   const setShowLoadDialog = useUIStore((state) => state.setShowLoadDialog);
-  const isDragging = useUIStore((state) => state.isDragging);
   const endDrag = useUIStore((state) => state.endDrag);
-
-  // Handle drop on canvas
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      // Drag handling is done in DropZone component
-    },
-    []
-  );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  }, []);
 
   const handleDragEnd = useCallback(() => {
     endDrag();
@@ -224,24 +209,10 @@ export function PlannerLayout() {
         <div className="flex flex-1 overflow-hidden">
           {/* Canvas */}
           <main
-            className={cn(
-              'flex-1 relative',
-              isDragging && 'ring-2 ring-primary ring-inset'
-            )}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
+            className="flex-1 relative"
             onDragEnd={handleDragEnd}
           >
             <KitchenCanvas />
-
-            {/* Drag overlay */}
-            {isDragging && (
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center bg-primary/5">
-                <div className="bg-background border border-border rounded-lg px-4 py-2 shadow-lg">
-                  <p className="text-sm font-medium">Drop to place</p>
-                </div>
-              </div>
-            )}
           </main>
 
           {/* Side panel */}

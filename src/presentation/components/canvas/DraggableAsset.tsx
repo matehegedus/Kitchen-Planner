@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo, useState, useCallback } from 'react';
+import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { PlacedAsset } from '@/src/domains/asset';
@@ -10,6 +10,11 @@ import { useUIStore } from '@/src/presentation/stores/uiStore';
 import { calculateSnappedPosition } from '@/src/domains/scene/services/SnapService';
 import { checkCollision, clampToRoomBounds } from '@/src/domains/scene/services/CollisionService';
 import type { Position3D } from '@/src/domains/shared/types';
+
+// Round a value to the nearest step
+function snapToStep(value: number, step: number): number {
+  return Math.round(value / step) * step;
+}
 
 interface DraggableAssetProps {
   placedAsset: PlacedAsset;
@@ -30,6 +35,9 @@ export function DraggableAsset({ placedAsset }: DraggableAssetProps) {
   
   const selectedAssetId = useUIStore((state) => state.selectedAssetId);
   const selectAsset = useUIStore((state) => state.selectAsset);
+  const movementStep = useUIStore((state) => state.movementStep);
+  const startSceneDrag = useUIStore((state) => state.startSceneDrag);
+  const endSceneDrag = useUIStore((state) => state.endSceneDrag);
 
   const asset = useMemo(() => getAssetById(placedAsset.assetId), [placedAsset.assetId]);
   
@@ -54,26 +62,34 @@ export function DraggableAsset({ placedAsset }: DraggableAssetProps) {
     return null;
   }, [hasCollision, isDragging, isSelected, isHovered]);
 
+  // Store original position for reverting on collision
+  const originalPositionRef = useRef<Position3D | null>(null);
+
   const handlePointerDown = useCallback(
     (e: THREE.Event & { stopPropagation: () => void }) => {
       e.stopPropagation();
       selectAsset(placedAsset.id);
       setIsDragging(true);
+      startSceneDrag(); // Signal that we're dragging in the scene (disables camera)
+      originalPositionRef.current = { ...placedAsset.position };
       gl.domElement.style.cursor = 'grabbing';
     },
-    [placedAsset.id, selectAsset, gl.domElement]
+    [placedAsset.id, placedAsset.position, selectAsset, startSceneDrag, gl.domElement]
   );
 
   const handlePointerUp = useCallback(() => {
-    if (isDragging && !hasCollision) {
+    if (isDragging) {
+      // If there's a collision, revert to original position
+      if (hasCollision && originalPositionRef.current) {
+        moveAsset(placedAsset.id, originalPositionRef.current, placedAsset.snappedTo);
+        setHasCollision(false);
+      }
       setIsDragging(false);
+      endSceneDrag(); // Signal that dragging ended (re-enables camera)
+      originalPositionRef.current = null;
       gl.domElement.style.cursor = 'grab';
-    } else if (hasCollision) {
-      // Revert to original position if collision
-      setIsDragging(false);
-      setHasCollision(false);
     }
-  }, [isDragging, hasCollision, gl.domElement]);
+  }, [isDragging, hasCollision, placedAsset.id, placedAsset.snappedTo, moveAsset, endSceneDrag, gl.domElement]);
 
   const handlePointerMove = useCallback(
     (e: PointerEvent) => {
@@ -91,11 +107,15 @@ export function DraggableAsset({ placedAsset }: DraggableAssetProps) {
       raycaster.ray.intersectPlane(plane, intersectPoint);
 
       if (intersectPoint) {
-        // Calculate snapped position
+        // Apply step-based movement snapping
+        const steppedX = snapToStep(intersectPoint.x, movementStep);
+        const steppedZ = snapToStep(intersectPoint.z, movementStep);
+
+        // Calculate snapped position with step-based values
         const desiredPosition: Position3D = {
-          x: intersectPoint.x,
+          x: steppedX,
           y: placedAsset.position.y,
-          z: intersectPoint.z,
+          z: steppedZ,
         };
 
         // Clamp to room bounds
@@ -105,7 +125,7 @@ export function DraggableAsset({ placedAsset }: DraggableAssetProps) {
           scene.room
         );
 
-        // Apply snapping
+        // Apply wall/floor snapping (this will override step snapping when near walls)
         const snapResult = calculateSnappedPosition(
           clampedPosition,
           asset,
@@ -139,23 +159,25 @@ export function DraggableAsset({ placedAsset }: DraggableAssetProps) {
       raycaster,
       getAssetLibrary,
       moveAsset,
+      movementStep,
     ]
   );
 
   // Attach/detach pointer move listener
-  useMemo(() => {
+  useEffect(() => {
     if (isDragging) {
       window.addEventListener('pointermove', handlePointerMove);
       window.addEventListener('pointerup', handlePointerUp);
+      
+      return () => {
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('pointerup', handlePointerUp);
+      };
     }
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
   }, [isDragging, handlePointerMove, handlePointerUp]);
 
   // Handle delete key
-  useMemo(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.key === 'Delete' || e.key === 'Backspace') && isSelected) {
         removeAsset(placedAsset.id);
@@ -165,10 +187,10 @@ export function DraggableAsset({ placedAsset }: DraggableAssetProps) {
 
     if (isSelected) {
       window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+      };
     }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
   }, [isSelected, placedAsset.id, removeAsset, selectAsset]);
 
   if (!asset) return null;

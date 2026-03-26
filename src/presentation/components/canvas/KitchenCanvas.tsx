@@ -34,6 +34,7 @@ export function KitchenCanvas() {
   const showMeasurements = useUIStore((state) => state.showMeasurements);
   const isDragging = useUIStore((state) => state.isDragging);
   const dragAssetType = useUIStore((state) => state.dragAssetType);
+  const isDraggingSceneAsset = useUIStore((state) => state.isDraggingSceneAsset);
   const endDrag = useUIStore((state) => state.endDrag);
   const selectAsset = useUIStore((state) => state.selectAsset);
   
@@ -215,9 +216,10 @@ export function KitchenCanvas() {
             />
           )}
 
-          {/* Camera controls */}
+          {/* Camera controls - disabled when dragging assets in scene */}
           <OrbitControls
             makeDefault
+            enabled={!isDraggingSceneAsset}
             maxPolarAngle={Math.PI / 2 - 0.1}
             minDistance={1}
             maxDistance={Math.max(width, depth) * 3}

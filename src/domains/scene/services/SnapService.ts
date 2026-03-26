@@ -2,7 +2,7 @@ import type { Position3D, Dimensions, WallPosition } from '../../shared/types';
 import type { Room, Wall } from '../../room';
 import type { Asset } from '../../asset';
 
-const WALL_SNAP_THRESHOLD = 0.15; // meters - how close to wall before snapping
+const WALL_SNAP_THRESHOLD = 0.25; // meters - how close to wall before snapping
 const GRID_SIZE = 0.05; // 5cm grid for smoother placement
 
 export interface SnapResult {

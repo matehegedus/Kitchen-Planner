@@ -1,14 +1,17 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSceneStore } from '@/src/presentation/stores/sceneStore';
-import { useUIStore } from '@/src/presentation/stores/uiStore';
+import { useUIStore, type MovementStep } from '@/src/presentation/stores/uiStore';
 import { getAssetById } from '@/src/domains/asset';
-import type { TextureType, AssetTexture } from '@/src/domains/shared/types';
+import { calculateSnappedPosition } from '@/src/domains/scene/services/SnapService';
+import { checkCollision, clampToRoomBounds } from '@/src/domains/scene/services/CollisionService';
+import type { TextureType, AssetTexture, Position3D } from '@/src/domains/shared/types';
 
 const TEXTURE_OPTIONS: { type: TextureType; label: string; color: string; props: Partial<AssetTexture> }[] = [
   { type: 'wood', label: 'Wood', color: '#8b6914', props: { roughness: 0.7 } },
@@ -27,13 +30,26 @@ const COLOR_OPTIONS = [
   { label: 'Black', color: '#2a2a2a' },
 ];
 
+const MOVEMENT_STEP_OPTIONS: { value: MovementStep; label: string }[] = [
+  { value: 0.001, label: '1mm' },
+  { value: 0.01, label: '10mm' },
+  { value: 0.1, label: '100mm' },
+];
+
 export function PropertiesPanel() {
   const scene = useSceneStore((state) => state.scene);
   const updateAssetTexture = useSceneStore((state) => state.updateAssetTexture);
   const removeAsset = useSceneStore((state) => state.removeAsset);
+  const moveAsset = useSceneStore((state) => state.moveAsset);
+  const getAssetLibrary = useSceneStore((state) => state.getAssetLibrary);
   
   const selectedAssetId = useUIStore((state) => state.selectedAssetId);
   const selectAsset = useUIStore((state) => state.selectAsset);
+  const movementStep = useUIStore((state) => state.movementStep);
+  const setMovementStep = useUIStore((state) => state.setMovementStep);
+
+  // Local state for position inputs (to allow typing before committing)
+  const [positionInputs, setPositionInputs] = useState({ x: '', z: '' });
 
   const selectedAsset = useMemo(() => {
     if (!selectedAssetId || !scene) return null;
@@ -83,6 +99,67 @@ export function PropertiesPanel() {
     selectAsset(null);
   };
 
+  // Handle position input change
+  const handlePositionChange = useCallback((axis: 'x' | 'z', value: string) => {
+    setPositionInputs(prev => ({ ...prev, [axis]: value }));
+  }, []);
+
+  // Commit position change on blur or Enter
+  const handlePositionCommit = useCallback((axis: 'x' | 'z') => {
+    if (!scene || !selectedAsset) return;
+    
+    const inputValue = positionInputs[axis];
+    if (!inputValue) {
+      setPositionInputs(prev => ({ ...prev, [axis]: '' }));
+      return;
+    }
+
+    const numValue = parseFloat(inputValue);
+    if (isNaN(numValue)) {
+      setPositionInputs(prev => ({ ...prev, [axis]: '' }));
+      return;
+    }
+
+    const { placed, asset } = selectedAsset;
+    
+    // Create new position
+    const newPosition: Position3D = {
+      x: axis === 'x' ? numValue : placed.position.x,
+      y: placed.position.y,
+      z: axis === 'z' ? numValue : placed.position.z,
+    };
+
+    // Clamp to room bounds
+    const clampedPosition = clampToRoomBounds(newPosition, asset.dimensions, scene.room);
+
+    // Apply snapping
+    const snapResult = calculateSnappedPosition(clampedPosition, asset, scene.room);
+
+    // Check collision
+    const assetLibrary = getAssetLibrary();
+    const collision = checkCollision(
+      snapResult.position,
+      asset.dimensions,
+      scene.placedAssets,
+      assetLibrary,
+      placed.id
+    );
+
+    // Only move if no collision
+    if (!collision.collides) {
+      moveAsset(placed.id, snapResult.position, snapResult.snappedTo);
+    }
+
+    // Clear input
+    setPositionInputs(prev => ({ ...prev, [axis]: '' }));
+  }, [scene, selectedAsset, positionInputs, getAssetLibrary, moveAsset]);
+
+  const handlePositionKeyDown = useCallback((e: React.KeyboardEvent, axis: 'x' | 'z') => {
+    if (e.key === 'Enter') {
+      handlePositionCommit(axis);
+    }
+  }, [handlePositionCommit]);
+
   const formatMeasurement = (value: number) => {
     if (value >= 1) {
       return `${value.toFixed(2)}m`;
@@ -124,21 +201,70 @@ export function PropertiesPanel() {
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Position
           </h4>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="flex items-center gap-2 p-2 bg-muted/50 rounded">
-              <span className="text-xs text-muted-foreground">X:</span>
-              <span className="font-medium">{placed.position.x.toFixed(2)}m</span>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="pos-x" className="text-xs text-muted-foreground">X (meters)</Label>
+              <Input
+                id="pos-x"
+                type="number"
+                step={movementStep}
+                placeholder={placed.position.x.toFixed(3)}
+                value={positionInputs.x}
+                onChange={(e) => handlePositionChange('x', e.target.value)}
+                onBlur={() => handlePositionCommit('x')}
+                onKeyDown={(e) => handlePositionKeyDown(e, 'x')}
+                className="h-8 text-sm"
+              />
             </div>
-            <div className="flex items-center gap-2 p-2 bg-muted/50 rounded">
-              <span className="text-xs text-muted-foreground">Z:</span>
-              <span className="font-medium">{placed.position.z.toFixed(2)}m</span>
+            <div className="space-y-1">
+              <Label htmlFor="pos-z" className="text-xs text-muted-foreground">Z (meters)</Label>
+              <Input
+                id="pos-z"
+                type="number"
+                step={movementStep}
+                placeholder={placed.position.z.toFixed(3)}
+                value={positionInputs.z}
+                onChange={(e) => handlePositionChange('z', e.target.value)}
+                onBlur={() => handlePositionCommit('z')}
+                onKeyDown={(e) => handlePositionKeyDown(e, 'z')}
+                className="h-8 text-sm"
+              />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Current: X={placed.position.x.toFixed(3)}m, Z={placed.position.z.toFixed(3)}m
+          </p>
           {placed.snappedTo && (
             <p className="text-xs text-muted-foreground">
               Snapped to: <span className="capitalize">{placed.snappedTo}</span>
             </p>
           )}
+        </div>
+
+        {/* Movement Step */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Movement Precision
+          </h4>
+          <div className="flex gap-2">
+            {MOVEMENT_STEP_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setMovementStep(option.value)}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded text-sm font-medium transition-colors',
+                  movementStep === option.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80'
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Controls drag movement step size
+          </p>
         </div>
 
         {/* Material */}
